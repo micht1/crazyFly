@@ -86,11 +86,13 @@ if __name__ == '__main__':
 
                     if is_close(multiranger.front):
                         velocity_x -= VELOCITY
+
                     if is_close(multiranger.back):
                         velocity_x += VELOCITY
 
                     if is_close(multiranger.left):
                         velocity_y -= VELOCITY
+
                     if is_close(multiranger.right):
                         velocity_y += VELOCITY
 
