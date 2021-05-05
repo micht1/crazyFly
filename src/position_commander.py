@@ -31,6 +31,7 @@ The PositionHlCommander uses position setpoints.
 
 Change the URI variable to your Crazyflie configuration.
 """
+import time
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
@@ -69,10 +70,11 @@ def slightly_more_complex_usage():
 def simple_sequence():
     with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
         with PositionHlCommander(scf) as pc:
-            pc.forward(1.0)
-            pc.left(1.0)
-            pc.back(1.0)
-            pc.go_to(0.0, 0.0, 1.0)
+            pc.forward(1.5)
+            time.sleep(1)
+            #pc.left(1.0)
+            #pc.back(1.0)
+            #pc.go_to(0.0, 0.0, 1.0)
 
 
 if __name__ == '__main__':
