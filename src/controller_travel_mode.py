@@ -24,6 +24,10 @@ THRESHOLD = 0.4 # m
 VELOCITY = 0.2
 OFFSET_TIME = 0.3
 
+
+TRAVEL_STATE = "travel"
+SEARCH_STATE = "search"
+
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
@@ -35,6 +39,7 @@ class Controller:
         print("Start run")
         self.cf=Crazyflie(rw_cache='./cache')
         self.avoid_left = True
+        self.state = SEARCH_STATE
         self.has_obstacle_ahead = False
         self.run()
 
@@ -129,13 +134,16 @@ class Controller:
                             self.avoid_left = not self.avoid_left
                             self.has_obstacle_ahead = False
 
-
-                        # b. are we arrived in the landing area ? 
-                        if self.is_drone_in_final_area():
-                            # Then leave the travel mode
-                            print("heheheh")
-                            mc.stop()
-                            return 
+                        if self.state == TRAVEL_STATE:
+                            # b. are we arrived in the landing area ? 
+                            if self.is_drone_in_final_area():
+                                # Then leave the travel mode
+                                print("heheheh")
+                                mc.stop()
+                                return 
+                        elif self.state == SEARCH_STATE:
+                            # TODO
+                            mc.circle_left(0.5, velocity=VELOCITY)
 
 
 if __name__ == '__main__':
