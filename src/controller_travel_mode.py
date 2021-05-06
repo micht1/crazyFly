@@ -9,16 +9,20 @@ Then it start traveling forward again.
 """
 import logging
 import time
+from threading import Timer
+import math
 
 import cflib.crtp
+from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils.multiranger import Multiranger
 
-URI = 'radio://0/70/2M'
-THRESHOLD = 20 
-VELOCITY = 0.5
+URI = 'radio://0/80/2M'
+THRESHOLD = 0.4 # m 
+VELOCITY = 0.2
+OFFSET_TIME = 0.3
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -27,17 +31,23 @@ class Controller:
     """
     A controller class must be setup
     """
-    def __init__(self): 
+    def __init__(self, link_uri): 
+        print("Start run")
         self.cf=Crazyflie(rw_cache='./cache')
-        # add a callback for when the drone is connected
-        self.cf.connected.add_callback(self.connected)
+        self.avoid_left = True
+        self.has_obstacle_ahead = False
+        self.run()
 
+    def set_initial_position(self, scf, x, y, z, yaw_deg):
+        scf.cf.param.set_value('kalman.initialX', x)
+        scf.cf.param.set_value('kalman.initialY', y)
+        scf.cf.param.set_value('kalman.initialZ', z)
+        yaw_radians = math.radians(yaw_deg)
+        scf.cf.param.set_value('kalman.initialYaw', yaw_radians)
 
-    def connected(self, link_uri):
+    def start_communication(self):
             """This callback is called form the Crazyflie API when a Crazyflie
             has been connected and the TOCs have been downloaded."""
-            print('Connected to %s' % link_uri)
-
             # The definition of the logconfig can be made before connecting
             self._lg_conf = LogConfig(name='kalman', period_in_ms=100)
             self._lg_conf.add_variable('kalman.stateX', 'float')
@@ -59,34 +69,32 @@ class Controller:
             except AttributeError:
                 print('Could not add Stabilizer log config, bad configuration.')
 
-            # Start a timer to disconnect in 10s
-            # (eventually)
-            t = Timer(5, self.cf.close_link)
-            t.start()
-
-            # And start the running code
-            self.run()
-
     def data_received_callback(self, timestamp, data, logconf):
         """Callback from a the log API when data arrives"""
-        print(f'[{timestamp}][{logconf.name}]: ', end='')
-        for name, value in data.items():
-            print(f'{name}: {value:3.3f} ', end='')
-        print()
+        self.pos = list(data.values())
 
     def error_received_callback(self, logconf, msg):
         """Callback from the log API when an error occurs"""
         print('Error when logging %s: %s' % (logconf.name, msg))
 
-    def is_drone_in_final_area(self, pos): 
-        return False
+    def is_drone_in_final_area(self): 
+        if self.pos[0] > 3.5 and self.pos[0] < 5:
+            return True
+        else:
+            return False
 
     def run(self):
         """
         This function make the drone fly in TRAVEL mode. 
         """
         # Initialize the low-level drivers (don't list the debug drivers)
-        with SyncCrazyflie(URI, cf=cf)) as scf:
+        with SyncCrazyflie(URI, cf=self.cf) as scf:
+            # Set initial position 
+            self.set_initial_position(scf, 0,0,0,0)
+
+            # we set the communication 
+            self.start_communication()
+
             # We take off when the commander is created
             with MotionCommander(scf) as mc:
                 with Multiranger(scf) as multiranger:
@@ -98,28 +106,39 @@ class Controller:
                         # In this while loop, we check for conditions that will change the travel state
                         # a. is there an obstacle ? 
                         if multiranger.front < THRESHOLD: 
+                            print("Obstacle detected ", self.avoid_left)
+                            if not self.has_obstacle_ahead:
+                                self.has_obstacle_ahead = True
+
                             # there is an obstacle forward, so let's move to the left
                             # for a small amount of time
-                            mc.start_left(velocity=VELOCITY)
-                            time.sleep(0.2)
+                            if (self.avoid_left and multiranger.left < THRESHOLD) \
+                            or (not self.avoid_left and multiranger.right < THRESHOLD): 
+                                print("Switching direction")
+                                self.avoid_left = not self.avoid_left
+
+                            if self.avoid_left: 
+                                mc.left(0.2, velocity=VELOCITY)
+                            else:
+                                mc.right(0.2, velocity=VELOCITY)
+
                             # and then move again forward
                             mc.start_forward(velocity = VELOCITY)
+                        elif self.has_obstacle_ahead:
+                            # no more obstacles 
+                            self.avoid_left = not self.avoid_left
+                            self.has_obstacle_ahead = False
+
 
                         # b. are we arrived in the landing area ? 
-                        drone_pos = None# TODO
-                        if self.is_drone_in_final_area(drone_pos):
+                        if self.is_drone_in_final_area():
                             # Then leave the travel mode
+                            print("heheheh")
                             mc.stop()
-
-                        
-                    # And we can stop
-                    mc.stop()
-
-                    # We land when the MotionCommander goes out of scope
-
+                            return 
 
 
 if __name__ == '__main__':
     cflib.crtp.init_drivers(enable_debug_driver=False)
-    Controller()
+    Controller(URI)
 
