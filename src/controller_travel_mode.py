@@ -39,7 +39,8 @@ class Controller:
             print('Connected to %s' % link_uri)
 
             # The definition of the logconfig can be made before connecting
-            self._lg_conf = LogConfig(name='kalman.stateX', period_in_ms=100)
+            self._lg_conf = LogConfig(name='kalman', period_in_ms=100)
+            self._lg_conf.add_variable('kalman.stateX', 'float')
             self._lg_conf.add_variable('kalman.stateY', 'float')
             self._lg_conf.add_variable('kalman.stateZ', 'float')
 
@@ -77,6 +78,9 @@ class Controller:
         """Callback from the log API when an error occurs"""
         print('Error when logging %s: %s' % (logconf.name, msg))
 
+    def is_drone_in_final_area(self, pos): 
+        return False
+
     def run(self):
         """
         This function make the drone fly in TRAVEL mode. 
@@ -102,7 +106,11 @@ class Controller:
                             mc.start_forward(velocity = VELOCITY)
 
                         # b. are we arrived in the landing area ? 
-                        drone_pos = # TODO
+                        drone_pos = None# TODO
+                        if self.is_drone_in_final_area(drone_pos):
+                            # Then leave the travel mode
+                            mc.stop()
+
                         
                     # And we can stop
                     mc.stop()
