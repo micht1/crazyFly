@@ -23,14 +23,11 @@ VELOCITY = 0.5
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
-
-
 class Controller:
     """
     A controller class must be setup
     """
     def __init__(self): 
-        cflib.crtp.init_drivers(enable_debug_driver=False)
         self.cf=Crazyflie(rw_cache='./cache')
         # add a callback for when the drone is connected
         self.cf.connected.add_callback(self.connected)
@@ -115,3 +112,6 @@ class Controller:
 
 
 if __name__ == '__main__':
+    cflib.crtp.init_drivers(enable_debug_driver=False)
+    Controller()
+
