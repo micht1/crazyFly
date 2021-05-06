@@ -11,6 +11,7 @@ import logging
 import time
 from threading import Timer
 import math
+import numpy as np
 
 import cflib.crtp
 from cflib.crazyflie.log import LogConfig
@@ -27,6 +28,17 @@ OFFSET_TIME = 0.3
 
 TRAVEL_STATE = "travel"
 SEARCH_STATE = "search"
+
+W_LR = 1.5 # 1.5
+H_LR = 1.5 # 3
+OFFSET_LR_X = 0 # 3.5
+OFFSET_LR_Y = 0 # 0
+
+X_0 = 0.75
+Y_0 = 0.75
+Z_0 = 0
+YAW_0 = 0
+
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -55,9 +67,11 @@ class Controller:
             has been connected and the TOCs have been downloaded."""
             # The definition of the logconfig can be made before connecting
             self._lg_conf = LogConfig(name='kalman', period_in_ms=100)
+            # TODO: find the yaw log variable, and understand the difference between kalman and estimate
             self._lg_conf.add_variable('kalman.stateX', 'float')
             self._lg_conf.add_variable('kalman.stateY', 'float')
             self._lg_conf.add_variable('kalman.stateZ', 'float')
+            self._lg_conf.add_variable('kalman.Yaw', 'float')
 
             # Adding the configuration cannot be done until a Crazyflie is
             # connected, since we need to check that the variables we
@@ -95,7 +109,7 @@ class Controller:
         # Initialize the low-level drivers (don't list the debug drivers)
         with SyncCrazyflie(URI, cf=self.cf) as scf:
             # Set initial position 
-            self.set_initial_position(scf, 0,0,0,0)
+            self.set_initial_position(scf, X_0, Y_0, Z_0, YAW_0)
 
             # we set the communication 
             self.start_communication()
@@ -105,8 +119,6 @@ class Controller:
                 with Multiranger(scf) as multiranger:
                     time.sleep(1)
 
-                    # Start flying forward
-                    mc.start_forward(velocity = VELOCITY)
                     while True: 
                         # In this while loop, we check for conditions that will change the travel state
                         # a. is there an obstacle ? 
@@ -129,12 +141,16 @@ class Controller:
 
                             # and then move again forward
                             mc.start_forward(velocity = VELOCITY)
+
                         elif self.has_obstacle_ahead:
                             # no more obstacles 
                             self.avoid_left = not self.avoid_left
                             self.has_obstacle_ahead = False
 
                         if self.state == TRAVEL_STATE:
+                            # Start flying forward
+                            mc.start_forward(velocity = VELOCITY)
+
                             # b. are we arrived in the landing area ? 
                             if self.is_drone_in_final_area():
                                 # Then leave the travel mode
@@ -142,8 +158,25 @@ class Controller:
                                 mc.stop()
                                 return 
                         elif self.state == SEARCH_STATE:
-                            # TODO
-                            mc.circle_left(0.5, velocity=VELOCITY)
+                            # a. genrate a point in the landing area
+                            p = np.random.rand(2) * np.array([W_LR , H_LR]) + [OFFSET_LR_X, OFFSET_LR_Y]
+                            print("Next target:", p)
+                            print("Current pos: ", self.pos)
+
+                            # b. rotate towards the point
+                            vector = p - self.pos[:2]
+                            r = np.linalg.norm(vector)
+                            delta = np.dot(vector, [math.cos(self.pos[-1]), math.sin(self.pos[-1])]) / r
+                            delta = math.degrees(math.acos(delta))
+
+                            print("Angle to rotate: ", delta)
+                            if delta < 0:
+                                mc.turn_right(-delta)
+                            else:
+                                mc.turn_left(delta)
+
+                            # c. move forward
+                            mc.forward(r)
 
 
 if __name__ == '__main__':
