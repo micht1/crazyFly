@@ -43,6 +43,8 @@ YAW_0 = 0
 ALTITUDE_FILTER_LENGTH=5
 ALTITUDE_FILTER_WEIGHTS=[0.06136,0.24477,0.38774,0.24477,0.06136]
 
+ARRIVED_THRESHOLD=0.1*VELOCITY
+
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
@@ -124,19 +126,25 @@ class Controller:
                 self.differenceAccumulator
             except NameError:
                 self.differenceAccumulator=0.0
+
             #insert new value into array used for filtering
             self.filterArray.append(position)
+
             #remove the oldest datapoint from the filter array if filter longer than wanted
             if(len(self.filterArray>ALTITUDE_FILTER_LENGTH)):
                 self.filterArray.pop(0)
+
             #prevent filtering if filter window is not full
             if(len(self.filterArray)==ALTITUDE_FILTER_LENGTH):
                 self.filteredAltitude=0.0
+
                 #calculate the weighted average(or finite gaussian filtered value depending on weights) of the altitude
                 for arrayPosition in range(ALTITUDE_FILTER_LENGTH):
                     self.filteredAltitude=self.filteredAltitude+self.filterArray[arrayPosition][2]*ALTITUDE_FILTER_WEIGHTS[arrayPosition]
+
                 #constantly sum the difference between each new altitude
                 self.differenceAccumulator=self.differenceAccumulator+(self.filteredAltitude-self.oldAltitude)
+
                 #small difference changes due to noise comming through the filter should equalize to 0,
                 #but if a box is on the floor the decrease in detected altitude accumulates a big difference until the altutide controller has corrected it.
                 if( abs(self.differenceAccumulator) >=threshold):
@@ -199,29 +207,37 @@ class Controller:
                             if self.is_drone_in_final_area():
                                 # Then leave the travel mode
                                 print("heheheh")
+                                self.acquireNewRandomPosition=True
                                 mc.stop()
                                 return 
-                        elif self.state == SEARCH_STATE:
+                        elif self.state == SEARCH_STATE:            #TODO: needs to be changed into a non blocking way to travel forward otherwise obstacle avoidance does not work
                             # a. genrate a point in the landing area
-                            p = np.random.rand(2) * np.array([W_LR , H_LR]) + [OFFSET_LR_X, OFFSET_LR_Y]
-                            print("Next target:", p)
-                            print("Current pos: ", self.pos)
+                            if(self.acquireNewRandomPosition==True):
+                                self.targetPosition = np.random.rand(2) * np.array([W_LR , H_LR]) + [OFFSET_LR_X, OFFSET_LR_Y]
+                                print("Next target:", self.targetPosition)
+                                print("Current pos: ", self.pos)
 
-                            # b. rotate towards the point
-                            vector = p - self.pos[:2]
-                            r = np.linalg.norm(vector)
-                            delta = np.dot(vector, [math.cos(self.pos[-1]), math.sin(self.pos[-1])]) / r
-                            delta = math.degrees(math.acos(delta))
+                                # b. rotate towards the point
+                                vector = self.targetPosition - self.pos[:2]
+                                r = np.linalg.norm(vector) # propably not needed
+                                delta = np.dot(vector, [math.cos(self.pos[-1]), math.sin(self.pos[-1])]) / r
+                                delta = math.degrees(math.acos(delta))
 
-                            print("Angle to rotate: ", delta)
-                            if delta < 0:
-                                mc.turn_right(-delta)
-                            else:
-                                mc.turn_left(delta)
+                                print("Angle to rotate: ", delta)
+                                if delta < 0:
+                                    mc.turn_right(-delta)
+                                else:
+                                    mc.turn_left(delta)
+                                self.acquireNewRandomPosition=False
 
-                            # c. move forward     TODO: needs to be changed into a non blocking way to travel forward
-                            mc.forward(r)
-                        elif(self.state==LANDING_STATE):
+                            # c. move forward     
+                            #mc.forward(r)
+                            mc.start_forward(velocity = VELOCITY)
+                            if(np.linalg.norm(self.targetPosition - self.pos[:2])<ARRIVED_THRESHOLD):
+                                mc.stop()
+                                mc.go_to(self.targetPosition[0],self.targetPosition[1])
+                                self.acquireNewRandomPosition=True
+
 
 
 
