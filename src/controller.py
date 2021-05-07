@@ -108,6 +108,7 @@ class Controller:
 
     def detect_landing_region(self):
         """Return true if the landing region was flied over.
+        This function make use of the self.altitude_profile array containing the logs of the altitude profile.
         """
         # TODO
         return False
