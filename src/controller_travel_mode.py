@@ -108,16 +108,15 @@ class Controller:
             return False
 
     # non blocking function that returns the position where the altitude estimate changed drastically.
-        #position is the variable that contains the current position and height estimate of the drone (x,y,z,yaw) in [m] and 
         #mode changes the method used to detect the edge of the box
         #threshold is the height of the edge over which the edge should be detected in [m]       
-    def boxEdgeDetection(self,position,mode,threshold):   
+    def boxEdgeDetection(self,mode,threshold):   
         if mode==0:
             #check if the needed variables exist and if not create them
             try: 
                 self.oldAltitude
             except NameError: 
-                self.oldAltitude=position[2]    
+                self.oldAltitude=self.pos[2]    
             try: 
                 self.filterArray
             except NameError:
@@ -128,7 +127,7 @@ class Controller:
                 self.differenceAccumulator=0.0
 
             #insert new value into array used for filtering
-            self.filterArray.append(position)
+            self.filterArray.append(self.pos)
 
             #remove the oldest datapoint from the filter array if filter longer than wanted
             if(len(self.filterArray>ALTITUDE_FILTER_LENGTH)):
@@ -208,6 +207,8 @@ class Controller:
                                 # Then leave the travel mode
                                 print("heheheh")
                                 self.acquireNewRandomPosition=True
+                                self.firstEdgeDetected=False
+                                self.boxEdgePoints=[]
                                 mc.stop()
                                 return 
                         elif self.state == SEARCH_STATE:            #TODO: needs to be changed into a non blocking way to travel forward otherwise obstacle avoidance does not work
@@ -233,10 +234,15 @@ class Controller:
                             # c. move forward     
                             #mc.forward(r)
                             mc.start_forward(velocity = VELOCITY)
-                            if(np.linalg.norm(self.targetPosition - self.pos[:2])<ARRIVED_THRESHOLD):
+                            if((np.linalg.norm(self.targetPosition - self.pos[:2])<ARRIVED_THRESHOLD) & self.firstEdgeDetected==False):
                                 mc.stop()
                                 mc.go_to(self.targetPosition[0],self.targetPosition[1])
                                 self.acquireNewRandomPosition=True
+                            [self.firstEdgeDetected,edgePoint] =self.boxEdgeDetection(0,0.1)
+                            if(self.firstEdgeDetected==True):
+                                mc.stop()
+                                boxEdgePoints.append(edgePoint)
+                                #self.state= LANDING_STATE
 
 
 
