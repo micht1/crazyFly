@@ -29,13 +29,13 @@ OFFSET_TIME = 0.3
 TRAVEL_STATE = "travel"
 SEARCH_STATE = "search"
 
-W_LR = 1.5 # 1.5
-H_LR = 1.5 # 3
+W_LR = 1 # 1.5
+H_LR = 1 # 3
 OFFSET_LR_X = 0 # 3.5
 OFFSET_LR_Y = 0 # 0
 
-X_0 = 0.75
-Y_0 = 0.75
+X_0 = 0.5
+Y_0 = 0.5
 Z_0 = 0
 YAW_0 = 0
 
@@ -68,10 +68,10 @@ class Controller:
             # The definition of the logconfig can be made before connecting
             self._lg_conf = LogConfig(name='kalman', period_in_ms=100)
             # TODO: find the yaw log variable, and understand the difference between kalman and estimate
-            self._lg_conf.add_variable('kalman.stateX', 'float')
-            self._lg_conf.add_variable('kalman.stateY', 'float')
-            self._lg_conf.add_variable('kalman.stateZ', 'float')
-            self._lg_conf.add_variable('kalman.Yaw', 'float')
+            self._lg_conf.add_variable('stateEstimate.x', 'float')
+            self._lg_conf.add_variable('stateEstimate.y', 'float')
+            self._lg_conf.add_variable('stateEstimate.z', 'float')
+            self._lg_conf.add_variable('stateEstimate.yaw', 'float')
 
             # Adding the configuration cannot be done until a Crazyflie is
             # connected, since we need to check that the variables we
@@ -109,7 +109,9 @@ class Controller:
         # Initialize the low-level drivers (don't list the debug drivers)
         with SyncCrazyflie(URI, cf=self.cf) as scf:
             # Set initial position 
+            print("Set initial position")
             self.set_initial_position(scf, X_0, Y_0, Z_0, YAW_0)
+            time.sleep(1)
 
             # we set the communication 
             self.start_communication()
