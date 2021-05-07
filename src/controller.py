@@ -55,6 +55,7 @@ class Controller:
         self.has_obstacle_ahead = False
 
         self.search_target = None
+        self.altitude_profile = None
         self.run()
 
     def set_initial_position(self, scf, x, y, z, yaw_deg):
@@ -147,6 +148,7 @@ class Controller:
                                 mc.stop()
                                 # and lunch the first search target
                                 self.state = SEARCH_STATE
+                                self.altitude_profile = []
                                 self.set_new_search_target()
 
                         # 2. search state
@@ -160,7 +162,10 @@ class Controller:
                                     mc.stop()
                                     self.set_new_search_target()
 
-                            # b. look if there is the landing area below the drone at this moment
+                            # b. save to memory the altitude profile
+                            self.altitude_profile.append(multiranger.down) # or .zrange ?
+
+                            # c. look if there is the landing area below the drone at this moment
                             if self.detect_landing_region():
                                 # the drone is above the landing region. 
                                 # we must start the validation algorithm.
