@@ -28,6 +28,7 @@ OFFSET_TIME = 0.3
 
 TRAVEL_STATE = "travel"
 SEARCH_STATE = "search"
+LANDING_STATE = "landing"
 
 W_LR = 1 # 1.5
 H_LR = 1 # 3
@@ -39,6 +40,8 @@ Y_0 = 0.5
 Z_0 = 0
 YAW_0 = 0
 
+ALTITUDE_FILTER_LENGTH=5
+ALTITUDE_FILTER_WEIGHTS=[0.06136,0.24477,0.38774,0.24477,0.06136]
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -97,11 +100,50 @@ class Controller:
         print('Error when logging %s: %s' % (logconf.name, msg))
 
     def is_drone_in_final_area(self): 
-        if self.pos[0] > 3.5 and self.pos[0] < 5:
+        if self.pos[0] > OFFSET_LR_X and self.pos[0] < (OFFSET_LR_X+W_LR):
             return True
         else:
             return False
 
+    # non blocking function that returns the position where the altitude estimate changed drastically.
+        #position is the variable that contains the current position and height estimate of the drone (x,y,z,yaw) in [m] and 
+        #mode changes the method used to detect the edge of the box
+        #threshold is the height of the edge over which the edge should be detected in [m]       
+    def boxEdgeDetection(self,position,mode,threshold):   
+        if mode==0:
+            #check if the needed variables exist and if not create them
+            try: 
+                self.oldAltitude
+            except NameError: 
+                self.oldAltitude=position[2]    
+            try: 
+                self.filterArray
+            except NameError:
+                self.filterArray = []
+            try: 
+                self.differenceAccumulator
+            except NameError:
+                self.differenceAccumulator=0.0
+            #insert new value into array used for filtering
+            self.filterArray.append(position)
+            #remove the oldest datapoint from the filter array if filter longer than wanted
+            if(len(self.filterArray>ALTITUDE_FILTER_LENGTH)):
+                self.filterArray.pop(0)
+            #prevent filtering if filter window is not full
+            if(len(self.filterArray)==ALTITUDE_FILTER_LENGTH):
+                self.filteredAltitude=0.0
+                #calculate the weighted average(or finite gaussian filtered value depending on weights) of the altitude
+                for arrayPosition in range(ALTITUDE_FILTER_LENGTH):
+                    self.filteredAltitude=self.filteredAltitude+self.filterArray[arrayPosition][2]*ALTITUDE_FILTER_WEIGHTS[arrayPosition]
+                #constantly sum the difference between each new altitude
+                self.differenceAccumulator=self.differenceAccumulator+(self.filteredAltitude-self.oldAltitude)
+                #small difference changes due to noise comming through the filter should equalize to 0,
+                #but if a box is on the floor the decrease in detected altitude accumulates a big difference until the altutide controller has corrected it.
+                if( abs(self.differenceAccumulator) >=threshold):
+                    self.differenceAccumulator=0.0
+                    return (True,self.filterArray[int(ALTITUDE_FILTER_LENGTH/2)+1])
+
+        return (False,[])
     def run(self):
         """
         This function make the drone fly in TRAVEL mode. 
@@ -177,8 +219,11 @@ class Controller:
                             else:
                                 mc.turn_left(delta)
 
-                            # c. move forward
+                            # c. move forward     TODO: needs to be changed into a non blocking way to travel forward
                             mc.forward(r)
+                        elif(self.state==LANDING_STATE):
+
+
 
 
 if __name__ == '__main__':
