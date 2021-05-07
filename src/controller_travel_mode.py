@@ -44,6 +44,7 @@ ALTITUDE_FILTER_LENGTH=5
 ALTITUDE_FILTER_WEIGHTS=[0.06136,0.24477,0.38774,0.24477,0.06136]
 
 ARRIVED_THRESHOLD=0.1*VELOCITY
+EDGE_HEIGHT = 0.1
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -238,7 +239,7 @@ class Controller:
                                 mc.stop()
                                 mc.go_to(self.targetPosition[0],self.targetPosition[1])
                                 self.acquireNewRandomPosition=True
-                            [self.firstEdgeDetected,edgePoint] =self.boxEdgeDetection(0,0.1)
+                            [self.firstEdgeDetected,edgePoint] =self.boxEdgeDetection(0,EDGE_HEIGHT)
                             if(self.firstEdgeDetected==True):
                                 mc.stop()
                                 boxEdgePoints.append(edgePoint)
